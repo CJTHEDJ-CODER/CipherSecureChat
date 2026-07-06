@@ -418,6 +418,10 @@ let activeContact = null;
 let activeSocket = null;
 let activeSession = null;
 let keepHistory = false;
+let keepaliveTimer = null;
+let reconnectTimer = null;
+let intentionalClose = false;
+let currentRoomId = null;
 
 async function openChat(contact) {
   activeContact = contact;
@@ -428,9 +432,6 @@ async function openChat(contact) {
   setChatStatus('connecting');
   show('screen-chat');
 
-  activeSession = new RatchetSession(contact);
-  await activeSession.init();
-
   keepHistory = await getSetting('keepHistory', false);
   if (keepHistory) {
     const history = await idbGetByIndex('messages', 'byContact', contact.id);
@@ -438,7 +439,15 @@ async function openChat(contact) {
     history.forEach(m => addBubble(m.mine ? 'mine' : 'theirs', m.text));
   }
 
-  connectChat(contact.roomId);
+  intentionalClose = false;
+  currentRoomId = contact.roomId;
+  await startNewSession();
+}
+
+async function startNewSession() {
+  activeSession = new RatchetSession(activeContact);
+  await activeSession.init();
+  connectChat(currentRoomId);
 }
 
 async function connectChat(roomId) {
@@ -448,14 +457,24 @@ async function connectChat(roomId) {
     setChatStatus('');
     return;
   }
+  setChatStatus('connecting');
   try {
     activeSocket = new WebSocket(relayUrl);
   } catch (e) {
     addBubble('system', 'Could not connect: ' + e.message);
+    scheduleReconnect();
     return;
   }
   activeSocket.onopen = () => {
     activeSocket.send('JOIN:' + roomId);
+    // keep the connection alive through proxy/idle timeouts -- harmless
+    // no-op on the receiving end, just prevents the socket looking idle
+    if (keepaliveTimer) clearInterval(keepaliveTimer);
+    keepaliveTimer = setInterval(() => {
+      if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+        activeSocket.send('PING:');
+      }
+    }, 20000);
   };
   activeSocket.onmessage = async (ev) => {
     const data = ev.data;
@@ -494,14 +513,34 @@ async function connectChat(roomId) {
       }
     }
   };
-  activeSocket.onclose = () => { setChatStatus(''); document.getElementById('msg-input').disabled = true; };
+  activeSocket.onclose = () => {
+    setChatStatus('');
+    document.getElementById('msg-input').disabled = true;
+    if (keepaliveTimer) { clearInterval(keepaliveTimer); keepaliveTimer = null; }
+    if (!intentionalClose) {
+      addBubble('system', 'Connection dropped — reconnecting…');
+      scheduleReconnect();
+    }
+  };
   activeSocket.onerror = () => { setChatStatus(''); };
 }
 
+function scheduleReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(async () => {
+    if (intentionalClose || !activeContact) return;
+    await startNewSession(); // fresh ephemeral keys again -- also re-heals the session
+  }, 2500);
+}
+
 function disconnectChat() {
+  intentionalClose = true;
+  if (keepaliveTimer) { clearInterval(keepaliveTimer); keepaliveTimer = null; }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   if (activeSocket) { try { activeSocket.close(); } catch {} activeSocket = null; }
   activeContact = null;
   activeSession = null;
+  currentRoomId = null;
 }
 
 function setChatStatus(state) {
