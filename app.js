@@ -465,6 +465,12 @@ async function connectChat(roomId) {
       addBubble('system', 'Establishing a fresh secure session…');
       return;
     }
+    if (data.startsWith('PEERJOINED:')) {
+      // our peer just connected -- our earlier HELLO (if any) may have
+      // been sent before they joined and gone nowhere. Resend it now.
+      activeSocket.send('HELLO:' + activeSession.myEphPubRaw);
+      return;
+    }
     if (data.startsWith('HELLO:')) {
       const theirEph = data.slice('HELLO:'.length);
       await activeSession.finishHandshake(theirEph);
