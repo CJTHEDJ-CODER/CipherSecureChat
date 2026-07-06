@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B0E11">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Cipher — Secure Chat</title>
+<style>
+  :root{
+    --bg:#0B0E11;
+    --surface:#12161B;
+    --surface-2:#1A1F26;
+    --line:#232A33;
+    --text:#E7ECEF;
+    --text-dim:#8B95A1;
+    --accent:#7C83FD;
+    --accent-dim:#4A4FAE;
+    --warn:#F2A65A;
+    --ok:#4ADE80;
+    --danger:#F26363;
+    --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    --sans: -apple-system, 'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%; background:var(--bg); color:var(--text); font-family:var(--sans); overscroll-behavior:none;}
+  #app{max-width:480px; margin:0 auto; height:100dvh; display:flex; flex-direction:column; position:relative; background:var(--bg);}
+
+  .screen{flex:1; display:flex; flex-direction:column; min-height:0; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);}
+  .hidden{display:none !important;}
+
+  .topbar{display:flex; align-items:center; gap:12px; padding:18px 20px 14px; border-bottom:1px solid var(--line);}
+  .topbar h1{font-size:17px; margin:0; font-weight:600; letter-spacing:0.2px;}
+  .topbar .sub{font-size:12px; color:var(--text-dim); font-family:var(--mono);}
+  .back-btn{background:none; border:none; color:var(--text); font-size:20px; padding:4px 8px; margin-left:-8px; cursor:pointer;}
+  .icon-btn{margin-left:auto; background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:8px 12px; font-size:13px; cursor:pointer;}
+  .icon-btn:active{background:var(--surface-2);}
+
+  /* CONTACTS LIST */
+  .contact-list{flex:1; overflow-y:auto; padding:8px 0;}
+  .contact-row{display:flex; align-items:center; gap:12px; padding:14px 20px; cursor:pointer; border-bottom:1px solid var(--line);}
+  .contact-row:active{background:var(--surface);}
+  .avatar{width:42px; height:42px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-weight:600; color:var(--accent); flex-shrink:0;}
+  .contact-name{font-weight:600; font-size:15px;}
+  .contact-meta{font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-top:2px;}
+  .empty-state{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px; text-align:center; color:var(--text-dim); gap:10px;}
+  .empty-state .glyph{font-size:34px; opacity:0.5;}
+  .empty-state h3{color:var(--text); font-size:16px; margin:0;}
+  .empty-state p{font-size:13px; margin:0; max-width:260px; line-height:1.5;}
+
+  .fab{position:absolute; right:20px; bottom:calc(20px + env(safe-area-inset-bottom)); width:56px; height:56px; border-radius:50%; background:var(--accent); border:none; color:#0B0E11; font-size:26px; font-weight:600; cursor:pointer; box-shadow:0 6px 20px rgba(124,131,253,0.35);}
+  .fab:active{background:var(--accent-dim); color:var(--text);}
+
+  /* ADD FRIEND FLOW */
+  .step-body{flex:1; display:flex; flex-direction:column; align-items:center; padding:24px; overflow-y:auto;}
+  .step-label{font-family:var(--mono); font-size:11px; letter-spacing:1.5px; color:var(--accent); text-transform:uppercase; margin-bottom:6px;}
+  .step-title{font-size:18px; font-weight:600; margin:0 0 6px;}
+  .step-desc{font-size:13px; color:var(--text-dim); text-align:center; max-width:300px; line-height:1.5; margin-bottom:22px;}
+  .qr-box{background:#fff; padding:16px; border-radius:16px; margin-bottom:20px;}
+  #qr-canvas-holder{width:220px; height:220px;}
+  video#scan-video{width:100%; max-width:320px; border-radius:16px; background:#000; aspect-ratio:1/1; object-fit:cover;}
+  .primary-btn{width:100%; max-width:320px; background:var(--accent); color:#0B0E11; border:none; padding:14px; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; margin-top:8px;}
+  .primary-btn:active{background:var(--accent-dim); color:var(--text);}
+  .ghost-btn{width:100%; max-width:320px; background:none; color:var(--text-dim); border:1px solid var(--line); padding:12px; border-radius:12px; font-size:14px; cursor:pointer; margin-top:10px;}
+  input.text-input{width:100%; max-width:320px; background:var(--surface); border:1px solid var(--line); color:var(--text); padding:13px 14px; border-radius:12px; font-size:15px; margin-bottom:10px; font-family:var(--sans);}
+  input.text-input:focus{outline:none; border-color:var(--accent);}
+
+  .fingerprint{font-family:var(--mono); font-size:20px; letter-spacing:3px; color:var(--ok); background:var(--surface); border:1px dashed var(--line); padding:14px 18px; border-radius:12px; margin:12px 0 20px;}
+
+  /* CHAT */
+  .chat-header{display:flex; align-items:center; gap:10px;}
+  .status-dot{width:8px; height:8px; border-radius:50%; background:var(--text-dim);}
+  .status-dot.connected{background:var(--ok);}
+  .status-dot.connecting{background:var(--warn);}
+  .messages{flex:1; overflow-y:auto; padding:16px 14px; display:flex; flex-direction:column; gap:8px;}
+  .msg{max-width:78%; padding:10px 13px; border-radius:16px; font-size:14.5px; line-height:1.4; word-wrap:break-word;}
+  .msg.mine{align-self:flex-end; background:var(--accent); color:#0B0E11; border-bottom-right-radius:4px;}
+  .msg.theirs{align-self:flex-start; background:var(--surface); border:1px solid var(--line); border-bottom-left-radius:4px;}
+  .msg.system{align-self:center; background:none; color:var(--text-dim); font-family:var(--mono); font-size:11px; text-align:center; max-width:90%;}
+  .composer{display:flex; gap:8px; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:var(--bg);}
+  .composer input{flex:1; background:var(--surface); border:1px solid var(--line); color:var(--text); padding:12px 14px; border-radius:20px; font-size:15px;}
+  .composer input:focus{outline:none; border-color:var(--accent);}
+  .send-btn{background:var(--accent); border:none; color:#0B0E11; width:42px; height:42px; border-radius:50%; font-size:16px; cursor:pointer; flex-shrink:0;}
+
+  /* SETTINGS */
+  .settings-body{padding:20px; overflow-y:auto;}
+  .field-label{font-size:12px; color:var(--text-dim); margin-bottom:6px; font-family:var(--mono); text-transform:uppercase; letter-spacing:1px;}
+  .settings-block{margin-bottom:22px;}
+  .id-box{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; font-family:var(--mono); font-size:11px; color:var(--text-dim); word-break:break-all;}
+  .toggle-row{display:flex; align-items:center; justify-content:space-between; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px;}
+  .toggle-row .t-label{font-size:14px;}
+  .toggle-row .t-desc{font-size:12px; color:var(--text-dim); margin-top:3px;}
+  .switch{position:relative; width:44px; height:26px; flex-shrink:0;}
+  .switch input{opacity:0; width:0; height:0;}
+  .slider{position:absolute; inset:0; background:var(--surface-2); border:1px solid var(--line); border-radius:20px; cursor:pointer; transition:0.2s;}
+  .slider:before{content:""; position:absolute; height:18px; width:18px; left:3px; top:3px; background:var(--text-dim); border-radius:50%; transition:0.2s;}
+  input:checked + .slider{background:var(--accent-dim); border-color:var(--accent);}
+  input:checked + .slider:before{transform:translateX(18px); background:var(--accent);}
+
+  .tabbar{display:flex; border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom);}
+  .tab{flex:1; text-align:center; padding:10px 0 8px; background:none; border:none; color:var(--text-dim); font-size:11px; font-family:var(--mono); cursor:pointer;}
+  .tab.active{color:var(--accent);}
+  .tab .tab-glyph{font-size:18px; display:block; margin-bottom:2px;}
+
+  ::-webkit-scrollbar{width:0;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- CONTACTS SCREEN -->
+  <div class="screen" id="screen-contacts">
+    <div class="topbar">
+      <h1>Cipher</h1>
+      <button class="icon-btn" id="btn-open-settings">Settings</button>
+    </div>
+    <div class="contact-list" id="contact-list"></div>
+    <button class="fab" id="btn-add-friend">+</button>
+  </div>
+
+  <!-- ADD FRIEND: MY CODE -->
+  <div class="screen hidden" id="screen-my-code">
+    <div class="topbar"><button class="back-btn" data-back="screen-contacts">‹</button><h1>Add friend</h1></div>
+    <div class="step-body">
+      <div class="step-label">Step 1 of 2</div>
+      <div class="step-title">Your invite code</div>
+      <div class="step-desc">Send this to your friend however you like — text, email, another app. It's your public key only, never a secret.</div>
+      <textarea id="my-invite-code" class="text-input" readonly rows="3" style="max-width:320px; font-family:var(--mono); font-size:12px; resize:none;"></textarea>
+      <button class="primary-btn" id="btn-share-code">Share code</button>
+      <button class="ghost-btn" id="btn-copy-code">Copy to clipboard</button>
+      <button class="primary-btn" id="btn-goto-paste" style="margin-top:22px;">Next: paste their code</button>
+    </div>
+  </div>
+
+  <!-- ADD FRIEND: PASTE THEIR CODE -->
+  <div class="screen hidden" id="screen-add-code">
+    <div class="topbar"><button class="back-btn" data-back="screen-my-code">‹</button><h1>Add friend</h1></div>
+    <div class="step-body">
+      <div class="step-label">Step 2 of 2</div>
+      <div class="step-title">Paste their code</div>
+      <div class="step-desc">Paste the invite code your friend sent you.</div>
+      <textarea id="paste-code-input" class="text-input" rows="4" placeholder="CIPHER1-..." style="max-width:320px; font-family:var(--mono); font-size:12px;"></textarea>
+      <button class="primary-btn" id="btn-parse-code">Continue</button>
+      <div id="paste-status" class="step-desc" style="margin-top:14px; color:var(--warn);"></div>
+    </div>
+  </div>
+
+  <!-- ADD FRIEND: CONFIRM -->
+  <div class="screen hidden" id="screen-confirm">
+    <div class="topbar"><h1>Verify & name</h1></div>
+    <div class="step-body">
+      <div class="step-label">Almost done</div>
+      <div class="step-title">Safety number</div>
+      <div class="step-desc">Read this out loud to each other. If both phones show the same numbers, your connection is confirmed secure.</div>
+      <div class="fingerprint" id="fingerprint-display">— — — —</div>
+      <input class="text-input" id="nickname-input" placeholder="What's their name?" maxlength="24">
+      <button class="primary-btn" id="btn-save-contact">Save contact</button>
+      <button class="ghost-btn" data-back="screen-contacts">Cancel</button>
+    </div>
+  </div>
+
+  <!-- CHAT SCREEN -->
+  <div class="screen hidden" id="screen-chat">
+    <div class="topbar">
+      <button class="back-btn" data-back="screen-contacts">‹</button>
+      <div class="chat-header">
+        <div class="avatar" id="chat-avatar" style="width:32px;height:32px;font-size:13px;"></div>
+        <div>
+          <h1 id="chat-name" style="font-size:15px;"></h1>
+          <div class="sub" id="chat-status"><span class="status-dot" id="chat-dot"></span> connecting</div>
+        </div>
+      </div>
+    </div>
+    <div class="messages" id="messages"></div>
+    <div class="composer">
+      <input id="msg-input" placeholder="Message" maxlength="2000" autocomplete="off">
+      <button class="send-btn" id="btn-send">↑</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS SCREEN -->
+  <div class="screen hidden" id="screen-settings">
+    <div class="topbar"><button class="back-btn" data-back="screen-contacts">‹</button><h1>Settings</h1></div>
+    <div class="settings-body">
+      <div class="settings-block">
+        <div class="field-label">Relay server address</div>
+        <input class="text-input" id="relay-input" placeholder="wss://your-relay.example.com" style="max-width:none;">
+        <button class="primary-btn" id="btn-save-relay" style="max-width:none;">Save</button>
+        <div class="step-desc" style="margin-top:10px; max-width:none; text-align:left;">
+          This server only ever passes along already-encrypted messages between you and your friend. It never sees your keys, your messages, or who you're talking to beyond a random room ID.
+        </div>
+      </div>
+      <div class="settings-block">
+        <div class="toggle-row">
+          <div>
+            <div class="t-label">Keep local chat history</div>
+            <div class="t-desc">Off by default. If on, messages are stored only in this browser, never sent anywhere.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="toggle-history"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="settings-block">
+        <div class="field-label">Your device identity</div>
+        <div class="id-box" id="my-pubkey-display">generating...</div>
+      </div>
+      <div class="settings-block">
+        <button class="ghost-btn" id="btn-wipe" style="max-width:none; color:var(--danger); border-color:var(--danger);">Erase all data on this device</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
