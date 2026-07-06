@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cipher-shell-v1';
+const CACHE_NAME = 'cipher-shell-v2';
 const SHELL_FILES = ['./index.html', './app.js', './manifest.json', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
